@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crownbid — India's Brand Leaderboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; background: #FAFAF9; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const ADMIN_PASS = "crownbid2026"; // Change this password
+    const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Pune', 'Chennai', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Other'];
+    const CATEGORIES = ['AI / Tech', 'SaaS', 'D2C / Clothing', 'Perfume / Beauty', 'Food', 'Local Business', 'Marketing', 'Other'];
+
+    function sanitize(str) {
+      return String(str || '').replace(/[<>"'&]/g, '').trim().slice(0, 80);
+    }
+    function isSafeUrl(url) {
+      try {
+        const u = new URL(url.startsWith('http') ? url : 'https://' + url);
+        return ['http:', 'https:'].includes(u.protocol);
+      } catch { return false; }
+    }
+
+    function App() {
+      const [businesses, setBusinesses] = useState(() => {
+        try {
+          const s = localStorage.getItem('crownbid_full');
+          return s ? JSON.parse(s) : [];
+        } catch { return []; }
+      });
+      const [claimAmount, setClaimAmount] = useState(500);
+      const [form, setForm] = useState({ name: '', url: '', city: 'Mumbai', category: 'AI / Tech' });
+      const [filterCity, setFilterCity] = useState('All');
+      const [online] = useState(Math.floor(Math.random() * 18) + 12);
+      const [showForm, setShowForm] = useState(false);
+      const [isAdmin, setIsAdmin] = useState(false);
+      const [adminOpen, setAdminOpen] = useState(false);
+      const [passInput, setPassInput] = useState('');
+
+      useEffect(() => {
+        localStorage.setItem('crownbid_full', JSON.stringify(businesses));
+      }, [businesses]);
+
+      const ranked = useMemo(() => {
+        let list = [...businesses].sort((a, b) => b.bid - a.bid);
+        if (filterCity !== 'All') list = list.filter(b => b.city === filterCity);
+        return list;
+      }, [businesses, filterCity]);
+
+      const topBid = businesses.length ? Math.max(...businesses.map(b => b.bid)) : 0;
+      const minRequired = Math.max(topBid + 50, 100);
+
+      const formatINR = (n) => '₹' + n.toLocaleString('en-IN');
+
+      const claimRank = () => {
+        const name = sanitize(form.name);
+        const urlRaw = form.url.trim();
+        if (!name) return alert('Business name daalo');
+        if (!urlRaw) return alert('Website URL daalo');
+        if (!isSafeUrl(urlRaw)) return alert('Valid website URL daalo');
+        if (claimAmount < minRequired) return alert(`Minimum ${formatINR(minRequired)} hona chahiye`);
+
+        const finalUrl = urlRaw.startsWith('http') ? urlRaw : 'https://' + urlRaw;
+        const newBiz = {
+          id: Date.now().toString(),
+          name,
+          url: finalUrl,
+          city: form.city,
+          category: form.category,
+          bid: claimAmount,
+          clicks: 0,
+          time: 'Just now',
+          logo: '🚀'
+        };
+        setBusinesses(prev => [newBiz, ...prev]);
+        setForm({ name: '', url: '', city: 'Mumbai', category: 'AI / Tech' });
+        setShowForm(false);
+        alert(`${name} leaderboard pe aa gaya!`);
+      };
+
+      const visit = (b) => {
+        if (!isSafeUrl(b.url)) return;
+        setBusinesses(prev => prev.map(x => x.id === b.id ? { ...x, clicks: (x.clicks || 0) + 1 } : x));
+        window.open(b.url, '_blank', 'noopener,noreferrer');
+      };
+
+      const deleteBiz = (id) => {
+        if (confirm('Is business ko delete karna hai?')) {
+          setBusinesses(prev => prev.filter(b => b.id !== id));
+        }
+      };
+
+      const loginAdmin = () => {
+        if (passInput === ADMIN_PASS) {
+          setIsAdmin(true);
+          setAdminOpen(false);
+          setPassInput('');
+          alert('Admin access mil gaya');
+        } else {
+          alert('Galat password');
+        }
+      };
+
+      const logoutAdmin = () => {
+        setIsAdmin(false);
+      };
+
+      return (
+        <div className="min-h-screen">
+          <nav className="border-b bg-white/90 backdrop-blur sticky top-0 z-10">
+            <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">👑</span>
+                <span className="font-bold text-lg">Crownbid</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-slate-500 flex items-center gap-1">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  {online} online
+                </span>
+                {isAdmin ? (
+                  <button onClick={logoutAdmin} className="text-red-500 font-medium">Logout</button>
+                ) : (
+                  <button onClick={() => setAdminOpen(true)} className="text-slate-400">Admin</button>
+                )}
+              </div>
+            </div>
+          </nav>
+
+          {/* Admin Login Modal */}
+          {adminOpen && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+              <div className="bg-white rounded-2xl p-6 w-full max-w-xs">
+                <h3 className="font-semibold mb-3">Admin Login</h3>
+                <input
+                  type="password"
+                  value={passInput}
+                  onChange={e => setPassInput(e.target.value)}
+                  placeholder="Password"
+                  className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
+                  onKeyDown={e => e.key === 'Enter' && loginAdmin()}
+                />
+                <div className="flex gap-2">
+                  <button onClick={loginAdmin} className="flex-1 bg-orange-500 text-white py-2 rounded-lg text-sm">Login</button>
+                  <button onClick={() => setAdminOpen(false)} className="flex-1 border py-2 rounded-lg text-sm">Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="max-w-xl mx-auto px-4 py-6">
+            <div className="text-center mb-5">
+              <h1 className="text-2xl font-bold">India's Brand Leaderboard</h1>
+              <p className="text-sm text-slate-500 mt-1">Highest bid takes #1</p>
+            </div>
+
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="w-full bg-orange-500 text-white font-semibold py-3 rounded-xl mb-4"
+            >
+              {showForm ? 'Close' : `Claim #1 · Min ${formatINR(minRequired)}`}
+            </button>
+
+            {showForm && (
+              <div className="bg-white rounded-2xl border p-5 mb-6 shadow-sm space-y-3">
+                <div className="flex items-center justify-center gap-3">
+                  <button onClick={() => setClaimAmount(a => Math.max(100, a - 50))} className="w-8 h-8 rounded-full border">−</button>
+                  <span className="text-2xl font-bold text-orange-500">{formatINR(claimAmount)}</span>
+                  <button onClick={() => setClaimAmount(a => a + 50)} className="w-8 h-8 rounded-full border">+</button>
+                </div>
+                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Business name" className="w-full border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400" />
+                <input value={form.url} onChange={e => setForm({...form, url: e.target.value})} placeholder="Website (example.com)" className="w-full border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400" />
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={form.city} onChange={e => setForm({...form, city: e.target.value})} className="border rounded-lg px-3 py-2.5 text-sm">
+                    {CITIES.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                  <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="border rounded-lg px-3 py-2.5 text-sm">
+                    {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <button onClick={claimRank} className="w-full bg-orange-500 text-white font-semibold py-2.5 rounded-lg text-sm">Claim Rank</button>
+              </div>
+            )}
+
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-4 text-xs">
+              {['All', ...CITIES.slice(0, 6)].map(c => (
+                <button key={c} onClick={() => setFilterCity(c)} className={`px-3 py-1 rounded-full whitespace-nowrap ${filterCity === c ? 'bg-orange-500 text-white' : 'bg-white border text-slate-600'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+
+            <h2 className="font-semibold mb-3 text-sm">Leaderboard {filterCity !== 'All' && `· ${filterCity}`}</h2>
+            {ranked.length === 0 ? (
+              <div className="text-center py-16 text-slate-400 text-sm bg-white rounded-2xl border">
+                Abhi koi business nahi hai.<br/>Pehle aap claim karo #1.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {ranked.map((b, i) => (
+                  <div key={b.id} className="bg-white rounded-2xl border p-4 flex gap-3">
+                    <div className="text-xl">{b.logo || '🚀'}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="font-semibold text-sm truncate">#{i+1} {b.name}</div>
+                        <div className="font-bold text-orange-500 text-sm shrink-0">{formatINR(b.bid)}</div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px] text-slate-400">
+                        <span className="bg-slate-100 px-1.5 py-0.5 rounded">{b.city}</span>
+                        <span className="bg-slate-100 px-1.5 py-0.5 rounded">{b.category}</span>
+                        <span>{b.clicks || 0} visits</span>
+                        <button onClick={() => visit(b)} className="text-orange-500 font-medium">Visit →</button>
+                        {isAdmin && (
+                          <button onClick={() => deleteBiz(b.id)} className="text-red-500 font-medium">Delete</button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <footer className="text-center text-[11px] text-slate-400 py-6 border-t">
+            Crownbid · Highest bid wins
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
